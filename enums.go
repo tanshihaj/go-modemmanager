@@ -2,6 +2,15 @@ package modemmanager
 
 /* Enums */
 
+type MMModemChange uint32
+
+//go:generate stringer -type=MMModemChange -trimprefix=MmModemChange
+const (
+	MmModemChangeAdded   MMModemChange = 0 // New modem added.
+	MmModemChangeRemoved MMModemChange = 1 // Existing modem removed.
+	// MmModemChangeUpdated MMModemChange = 2 // Existing modem properties changed
+)
+
 // MMModemCapability Flags describing one or more of the general access technology families that a modem supports.
 type MMModemCapability uint32
 

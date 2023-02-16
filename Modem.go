@@ -3,9 +3,8 @@ package modemmanager
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+
 	"github.com/godbus/dbus/v5"
-	"reflect"
 )
 
 // Paths of methods and properties
@@ -73,35 +72,35 @@ type Modem interface {
 	// Returns object path
 	GetObjectPath() dbus.ObjectPath
 
-	// Returns ModemSimple Interface
-	GetSimpleModem() (ModemSimple, error)
+	// // Returns ModemSimple Interface
+	// GetSimpleModem() (ModemSimple, error)
 
-	// Returns Modem3gpp Interface
-	Get3gpp() (Modem3gpp, error)
+	// // Returns Modem3gpp Interface
+	// Get3gpp() (Modem3gpp, error)
 
-	// Return ModemCdma Interface
-	GetCdma() (ModemCdma, error)
+	// // Return ModemCdma Interface
+	// GetCdma() (ModemCdma, error)
 
-	// Return ModemTime Interface
-	GetTime() (ModemTime, error)
+	// // Return ModemTime Interface
+	// GetTime() (ModemTime, error)
 
-	// Return ModemFirmware Interface
-	GetFirmware() (ModemFirmware, error)
+	// // Return ModemFirmware Interface
+	// GetFirmware() (ModemFirmware, error)
 
-	// Return ModemSignal Interface
-	GetSignal() (ModemSignal, error)
+	// // Return ModemSignal Interface
+	// GetSignal() (ModemSignal, error)
 
-	// Return ModemSignal Interface
-	GetOma() (ModemOma, error)
+	// // Return ModemSignal Interface
+	// GetOma() (ModemOma, error)
 
-	// Return ModemLocation Interface
-	GetLocation() (ModemLocation, error)
+	// // Return ModemLocation Interface
+	// GetLocation() (ModemLocation, error)
 
-	// Return ModemMessaging Interface
-	GetMessaging() (ModemMessaging, error)
+	// // Return ModemMessaging Interface
+	// GetMessaging() (ModemMessaging, error)
 
-	// Return ModemVoice Interface
-	GetVoice() (ModemVoice, error)
+	// // Return ModemVoice Interface
+	// GetVoice() (ModemVoice, error)
 
 	// Enables the Modem: When enabled, the modem's radio is powered on and data sessions, voice calls,
 	// location services, and Short Message Service may be available.
@@ -118,10 +117,10 @@ type Modem interface {
 	//
 	// Some properties are only applicable to a bearer of certain access technologies, for example the "apn" property is
 	// not applicable to CDMA2000 Packet Data Session bearers.
-	CreateBearer(BearerProperty) (Bearer, error)
+	// CreateBearer(BearerProperty) (Bearer, error)
 
 	// If the bearer is currently active and providing packet data server, it will be disconnected and that packet data service will terminate.
-	DeleteBearer(bearer Bearer) error
+	// DeleteBearer(bearer Bearer) error
 
 	// Clear non-persistent configuration and state, and return the device to a newly-powered-on state.
 	// This command may power-cycle the device.
@@ -154,11 +153,11 @@ type Modem interface {
 	/* PROPERTIES */
 
 	// The path of the SIM object available in this device, if any.
-	GetSim() (Sim, error)
+	// GetSim() (Sim, error)
 
 	// The list of bearer object paths (EPS Bearers, PDP Contexts, or CDMA2000 Packet Data Sessions) as requested by the user.
 	// This list does not include the initial EPS bearer details (see "InitialEpsBearer").
-	GetBearers() ([]Bearer, error)
+	// GetBearers() ([]Bearer, error)
 
 	// List of MMModemCapability values, specifying the combinations of generic family of access technologies the modem supports.
 	// If the modem doesn't allow changing the current capabilities, a single entry with MM_MODEM_CAPABILITY_ANY will be given.
@@ -289,32 +288,31 @@ type Modem interface {
 	// i old: A MMModemState value, specifying the new state.
 	// i new: A MMModemState value, specifying the new state.
 	// u reason: A MMModemStateChangeReason value, specifying the reason for this state change.
-	SubscribeStateChanged() <-chan *dbus.Signal
+	// SubscribeStateChanged() <-chan *dbus.Signal
 
 	// ParseStateChanged returns the parsed dbus signal
-	ParseStateChanged(v *dbus.Signal) (oldState MMModemState, newState MMModemState, reason MMModemStateChangeReason, err error)
+	// ParseStateChanged(v *dbus.Signal) (oldState MMModemState, newState MMModemState, reason MMModemStateChangeReason, err error)
 
 	// Listen to changed properties
 	// returns []interface
 	// index 0 = name of the interface on which the properties are defined
 	// index 1 = changed properties with new values as map[string]dbus.Variant
 	// index 2 = invalidated properties: changed properties but the new values are not send with them
-	SubscribePropertiesChanged() <-chan *dbus.Signal
+	// SubscribePropertiesChanged() <-chan *dbus.Signal
 
 	// ParsePropertiesChanged parses the dbus signal
-	ParsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error)
-	Unsubscribe()
+	// ParsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error)
+	// Unsubscribe()
 }
 
 // NewModem returns new Modem Interface
 func NewModem(objectPath dbus.ObjectPath) (Modem, error) {
 	var m modem
-	return &m, m.init(ModemManagerInterface, objectPath)
+	return &m, m.init(ModemManagerInterface, objectPath, &m)
 }
 
 type modem struct {
 	dbusBase
-	sigChan chan *dbus.Signal
 }
 
 // Represents the modem port (name and type)
@@ -345,105 +343,106 @@ func (mo Mode) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (m modem) GetObjectPath() dbus.ObjectPath {
+func (m *modem) GetObjectPath() dbus.ObjectPath {
 	return m.obj.Path()
 }
-func (m modem) GetSimpleModem() (ModemSimple, error) {
-	return NewModemSimple(m.obj.Path())
-}
-func (m modem) Get3gpp() (Modem3gpp, error) {
-	return NewModem3gpp(m.obj.Path())
-}
-func (m modem) GetCdma() (ModemCdma, error) {
-	return NewModemCdma(m.obj.Path())
-}
 
-func (m modem) GetTime() (ModemTime, error) {
-	return NewModemTime(m.obj.Path())
-}
+// func (m *modem) GetSimpleModem() (ModemSimple, error) {
+// 	return NewModemSimple(m.obj.Path())
+// }
+// func (m *modem) Get3gpp() (Modem3gpp, error) {
+// 	return NewModem3gpp(m.obj.Path())
+// }
+// func (m *modem) GetCdma() (ModemCdma, error) {
+// 	return NewModemCdma(m.obj.Path())
+// }
 
-func (m modem) GetFirmware() (ModemFirmware, error) {
-	return NewModemFirmware(m.obj.Path())
-}
+// func (m *modem) GetTime() (ModemTime, error) {
+// 	return NewModemTime(m.obj.Path())
+// }
 
-func (m modem) GetSignal() (ModemSignal, error) {
-	return NewModemSignal(m.obj.Path())
-}
+// func (m *modem) GetFirmware() (ModemFirmware, error) {
+// 	return NewModemFirmware(m.obj.Path())
+// }
 
-func (m modem) GetOma() (ModemOma, error) {
-	return NewModemOma(m.obj.Path())
-}
+// func (m *modem) GetSignal() (ModemSignal, error) {
+// 	return NewModemSignal(m.obj.Path())
+// }
 
-func (m modem) GetLocation() (ModemLocation, error) {
-	return NewModemLocation(m.obj.Path())
-}
-func (m modem) GetMessaging() (ModemMessaging, error) {
-	return NewModemMessaging(m.obj.Path())
-}
-func (m modem) GetVoice() (ModemVoice, error) {
-	return NewModemVoice(m.obj.Path(), m)
-}
+// func (m *modem) GetOma() (ModemOma, error) {
+// 	return NewModemOma(m.obj.Path())
+// }
 
-func (m modem) Enable() error {
+// func (m *modem) GetLocation() (ModemLocation, error) {
+// 	return NewModemLocation(m.obj.Path())
+// }
+// func (m *modem) GetMessaging() (ModemMessaging, error) {
+// 	return NewModemMessaging(m.obj.Path())
+// }
+// func (m *modem) GetVoice() (ModemVoice, error) {
+// 	return NewModemVoice(m.obj.Path(), m)
+// }
+
+func (m *modem) Enable() error {
 	err := m.call(ModemEnable, true)
 	return err
 }
 
-func (m modem) Disable() error {
+func (m *modem) Disable() error {
 	err := m.call(ModemDisable, false)
 	return err
 }
 
-func (m modem) CreateBearer(property BearerProperty) (Bearer, error) {
-	// todo: untested
-	v := reflect.ValueOf(property)
-	st := reflect.TypeOf(property)
-	type dynMap interface{}
-	myMap := make(map[string]dynMap)
-	for i := 0; i < v.NumField(); i++ {
-		field := st.Field(i)
-		tag := field.Tag.Get("json")
-		value := v.Field(i).Interface()
-		if v.Field(i).IsZero() {
-			continue
-		}
-		myMap[tag] = value
-	}
-	var path dbus.ObjectPath
-	err := m.callWithReturn(&path, ModemCreateBearer, &myMap)
-	if err != nil {
-		return nil, err
-	}
-	return NewBearer(path)
-}
+// func (m *modem) CreateBearer(property BearerProperty) (Bearer, error) {
+// 	// todo: untested
+// 	v := reflect.ValueOf(property)
+// 	st := reflect.TypeOf(property)
+// 	type dynMap interface{}
+// 	myMap := make(map[string]dynMap)
+// 	for i := 0; i < v.NumField(); i++ {
+// 		field := st.Field(i)
+// 		tag := field.Tag.Get("json")
+// 		value := v.Field(i).Interface()
+// 		if v.Field(i).IsZero() {
+// 			continue
+// 		}
+// 		myMap[tag] = value
+// 	}
+// 	var path dbus.ObjectPath
+// 	err := m.callWithReturn(&path, ModemCreateBearer, &myMap)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return NewBearer(path)
+// }
 
-func (m modem) DeleteBearer(bearer Bearer) error {
-	// todo: untested
-	return m.call(ModemDeleteBearer, bearer.GetObjectPath())
-}
+// func (m *modem) DeleteBearer(bearer Bearer) error {
+// 	// todo: untested
+// 	return m.call(ModemDeleteBearer, bearer.GetObjectPath())
+// }
 
-func (m modem) Reset() error {
+func (m *modem) Reset() error {
 	return m.call(ModemReset)
 }
 
-func (m modem) FactoryReset(code string) error {
+func (m *modem) FactoryReset(code string) error {
 	// todo: untested
 	return m.call(ModemFactoryReset, code)
 }
 
-func (m modem) SetPowerState(state MMModemPowerState) error {
+func (m *modem) SetPowerState(state MMModemPowerState) error {
 	// handle with care ...
 	return m.call(ModemSetPowerState, state)
 }
 
-func (m modem) SetCurrentCapabilities(capabilities []MMModemCapability) error {
+func (m *modem) SetCurrentCapabilities(capabilities []MMModemCapability) error {
 	// todo: untested
 	var caps MMModemCapability
 	err := m.call(ModemSetCurrentCapabilities, caps.SliceToBitmask(capabilities))
 	return err
 }
 
-func (m modem) SetCurrentModes(property Mode) error {
+func (m *modem) SetCurrentModes(property Mode) error {
 	// todo: untested
 	var mode MMModemMode
 	var resSlice = []uint32{mode.SliceToBitmask(property.AllowedModes),
@@ -451,41 +450,41 @@ func (m modem) SetCurrentModes(property Mode) error {
 	return m.call(ModemSetCurrentModes, resSlice)
 }
 
-func (m modem) SetCurrentBands(bands []MMModemBand) error {
+func (m *modem) SetCurrentBands(bands []MMModemBand) error {
 	// todo: untested
 	return m.call(ModemSetCurrentBands, bands)
 }
 
-func (m modem) Command(cmd string, timeout uint32) (response string, err error) {
+func (m *modem) Command(cmd string, timeout uint32) (response string, err error) {
 	err = m.callWithReturn(&response, ModemCommand, cmd, timeout)
 	return
 }
 
-func (m modem) GetSim() (Sim, error) {
-	simPath, err := m.getObjectProperty(ModemPropertySim)
-	if err != nil {
-		return nil, err
-	}
-	return NewSim(simPath)
-}
+// func (m *modem) GetSim() (Sim, error) {
+// 	simPath, err := m.getObjectProperty(ModemPropertySim)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return NewSim(simPath)
+// }
 
-func (m modem) GetBearers() ([]Bearer, error) {
-	bearerPaths, err := m.getSliceObjectProperty(ModemPropertyBearers)
-	if err != nil {
-		return nil, err
-	}
-	var bearers []Bearer
-	for idx := range bearerPaths {
-		bearer, err := NewBearer(bearerPaths[idx])
-		if err != nil {
-			return nil, err
-		}
-		bearers = append(bearers, bearer)
-	}
-	return bearers, nil
-}
+// func (m *modem) GetBearers() ([]Bearer, error) {
+// 	bearerPaths, err := m.getSliceObjectProperty(ModemPropertyBearers)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	var bearers []Bearer
+// 	for idx := range bearerPaths {
+// 		bearer, err := NewBearer(bearerPaths[idx])
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		bearers = append(bearers, bearer)
+// 	}
+// 	return bearers, nil
+// }
 
-func (m modem) GetSupportedCapabilities() (capabilities [][]MMModemCapability, err error) {
+func (m *modem) GetSupportedCapabilities() (capabilities [][]MMModemCapability, err error) {
 	caps, err := m.getSliceUint32Property(ModemPropertySupportedCapabilities)
 	if err != nil {
 		return nil, err
@@ -499,7 +498,7 @@ func (m modem) GetSupportedCapabilities() (capabilities [][]MMModemCapability, e
 
 }
 
-func (m modem) GetCurrentCapabilities() (capabilities []MMModemCapability, err error) {
+func (m *modem) GetCurrentCapabilities() (capabilities []MMModemCapability, err error) {
 	res, err := m.getUint32Property(ModemPropertyCurrentCapabilities)
 	if err != nil {
 		return nil, err
@@ -508,60 +507,60 @@ func (m modem) GetCurrentCapabilities() (capabilities []MMModemCapability, err e
 	return capability.BitmaskToSlice(res), nil
 }
 
-func (m modem) GetMaxBearers() (maxBearers uint32, err error) {
+func (m *modem) GetMaxBearers() (maxBearers uint32, err error) {
 
 	return m.getUint32Property(ModemPropertyMaxBearers)
 }
 
-func (m modem) GetMaxActiveBearers() (uint32, error) {
+func (m *modem) GetMaxActiveBearers() (uint32, error) {
 	return m.getUint32Property(ModemPropertyMaxActiveBearers)
 }
 
-func (m modem) GetManufacturer() (string, error) {
+func (m *modem) GetManufacturer() (string, error) {
 	return m.getStringProperty(ModemPropertyManufacturer)
 }
 
-func (m modem) GetModel() (string, error) {
+func (m *modem) GetModel() (string, error) {
 	return m.getStringProperty(ModemPropertyModel)
 }
 
-func (m modem) GetRevision() (string, error) {
+func (m *modem) GetRevision() (string, error) {
 	return m.getStringProperty(ModemPropertyRevision)
 }
 
-func (m modem) GetCarrierConfiguration() (string, error) {
+func (m *modem) GetCarrierConfiguration() (string, error) {
 	return m.getStringProperty(ModemPropertyCarrierConfiguration)
 }
 
-func (m modem) GetCarrierConfigurationRevision() (string, error) {
+func (m *modem) GetCarrierConfigurationRevision() (string, error) {
 	return m.getStringProperty(ModemPropertyCarrierConfigurationRevision)
 }
 
-func (m modem) GetHardwareRevision() (string, error) {
+func (m *modem) GetHardwareRevision() (string, error) {
 	return m.getStringProperty(ModemPropertyHardwareRevision)
 }
 
-func (m modem) GetDeviceIdentifier() (string, error) {
+func (m *modem) GetDeviceIdentifier() (string, error) {
 	return m.getStringProperty(ModemPropertyDeviceIdentifier)
 }
 
-func (m modem) GetDevice() (string, error) {
+func (m *modem) GetDevice() (string, error) {
 	return m.getStringProperty(ModemPropertyDevice)
 }
 
-func (m modem) GetDrivers() ([]string, error) {
+func (m *modem) GetDrivers() ([]string, error) {
 	return m.getSliceStringProperty(ModemPropertyDrivers)
 }
 
-func (m modem) GetPlugin() (string, error) {
+func (m *modem) GetPlugin() (string, error) {
 	return m.getStringProperty(ModemPropertyPlugin)
 }
 
-func (m modem) GetPrimaryPort() (string, error) {
+func (m *modem) GetPrimaryPort() (string, error) {
 	return m.getStringProperty(ModemPropertyPrimaryPort)
 }
 
-func (m modem) GetPorts() (ports []port, err error) {
+func (m *modem) GetPorts() (ports []port, err error) {
 	res, err := m.getSliceSlicePairProperty(ModemPropertyPorts)
 	if err != nil {
 		return nil, err
@@ -581,11 +580,11 @@ func (m modem) GetPorts() (ports []port, err error) {
 	return
 }
 
-func (m modem) GetEquipmentIdentifier() (string, error) {
+func (m *modem) GetEquipmentIdentifier() (string, error) {
 	return m.getStringProperty(ModemPropertyEquipmentIdentifier)
 }
 
-func (m modem) GetUnlockRequired() (MMModemLock, error) {
+func (m *modem) GetUnlockRequired() (MMModemLock, error) {
 
 	res, err := m.getUint32Property(ModemPropertyUnlockRequired)
 	if err != nil {
@@ -594,7 +593,7 @@ func (m modem) GetUnlockRequired() (MMModemLock, error) {
 	return MMModemLock(res), nil
 }
 
-func (m modem) GetUnlockRetries() (values []Pair, err error) {
+func (m *modem) GetUnlockRetries() (values []Pair, err error) {
 	res, err := m.getMapUint32Uint32Property(ModemPropertyUnlockRetries)
 	if err != nil {
 		return nil, err
@@ -605,7 +604,7 @@ func (m modem) GetUnlockRetries() (values []Pair, err error) {
 	return values, nil
 }
 
-func (m modem) GetState() (MMModemState, error) {
+func (m *modem) GetState() (MMModemState, error) {
 
 	res, err := m.getInt32Property(ModemPropertyState)
 	if err != nil {
@@ -614,7 +613,7 @@ func (m modem) GetState() (MMModemState, error) {
 	return MMModemState(res), nil
 }
 
-func (m modem) GetStateFailedReason() (MMModemStateFailedReason, error) {
+func (m *modem) GetStateFailedReason() (MMModemStateFailedReason, error) {
 	res, err := m.getUint32Property(ModemPropertyStateFailedReason)
 	if err != nil {
 		return MmModemStateFailedReasonUnknown, err
@@ -623,7 +622,7 @@ func (m modem) GetStateFailedReason() (MMModemStateFailedReason, error) {
 	return MMModemStateFailedReason(res), nil
 }
 
-func (m modem) GetAccessTechnologies() (result []MMModemAccessTechnology, err error) {
+func (m *modem) GetAccessTechnologies() (result []MMModemAccessTechnology, err error) {
 	res, err := m.getUint32Property(ModemPropertyAccessTechnologies)
 	if err != nil {
 		return nil, err
@@ -633,7 +632,7 @@ func (m modem) GetAccessTechnologies() (result []MMModemAccessTechnology, err er
 	return tmp.BitmaskToSlice(res), nil
 }
 
-func (m modem) GetSignalQuality() (percent uint32, recent bool, err error) {
+func (m *modem) GetSignalQuality() (percent uint32, recent bool, err error) {
 	res, err := m.getPairProperty(ModemPropertySignalQuality)
 	if err != nil {
 		return
@@ -641,12 +640,12 @@ func (m modem) GetSignalQuality() (percent uint32, recent bool, err error) {
 	return res.a.(uint32), res.b.(bool), nil
 }
 
-func (m modem) GetOwnNumbers() ([]string, error) {
+func (m *modem) GetOwnNumbers() ([]string, error) {
 	return m.getSliceStringProperty(ModemPropertyOwnNumbers)
 
 }
 
-func (m modem) GetPowerState() (MMModemPowerState, error) {
+func (m *modem) GetPowerState() (MMModemPowerState, error) {
 	res, err := m.getUint32Property(ModemPropertyPowerState)
 	if err != nil {
 		return MmModemPowerStateUnknown, err
@@ -654,7 +653,7 @@ func (m modem) GetPowerState() (MMModemPowerState, error) {
 	return MMModemPowerState(res), nil
 }
 
-func (m modem) GetSupportedModes() (modes []Mode, err error) {
+func (m *modem) GetSupportedModes() (modes []Mode, err error) {
 
 	res, err := m.getSliceSlicePairProperty(ModemPropertySupportedModes)
 
@@ -669,7 +668,7 @@ func (m modem) GetSupportedModes() (modes []Mode, err error) {
 	return
 
 }
-func (m modem) GetCurrentModes() (mode Mode, err error) {
+func (m *modem) GetCurrentModes() (mode Mode, err error) {
 	res, err := m.getPairProperty(ModemPropertyCurrentModes)
 	if err != nil {
 		return mode, err
@@ -681,7 +680,7 @@ func (m modem) GetCurrentModes() (mode Mode, err error) {
 	return
 }
 
-func (m modem) GetSupportedBands() (bands []MMModemBand, err error) {
+func (m *modem) GetSupportedBands() (bands []MMModemBand, err error) {
 	res, err := m.getSliceUint32Property(ModemPropertySupportedBands)
 	if err != nil {
 		return nil, err
@@ -694,7 +693,7 @@ func (m modem) GetSupportedBands() (bands []MMModemBand, err error) {
 
 }
 
-func (m modem) GetCurrentBands() (bands []MMModemBand, err error) {
+func (m *modem) GetCurrentBands() (bands []MMModemBand, err error) {
 	res, err := m.getSliceUint32Property(ModemPropertyCurrentBands)
 	if err != nil {
 		return nil, err
@@ -706,7 +705,7 @@ func (m modem) GetCurrentBands() (bands []MMModemBand, err error) {
 	return
 }
 
-func (m modem) GetSupportedIpFamilies() ([]MMBearerIpFamily, error) {
+func (m *modem) GetSupportedIpFamilies() ([]MMBearerIpFamily, error) {
 	res, err := m.getUint32Property(ModemPropertySupportedIpFamilies)
 	if err != nil {
 		return nil, err
@@ -716,84 +715,87 @@ func (m modem) GetSupportedIpFamilies() ([]MMBearerIpFamily, error) {
 	return ipFam.BitmaskToSlice(res), nil
 }
 
-func (m modem) SubscribeStateChanged() <-chan *dbus.Signal {
-	if m.sigChan != nil {
-		return m.sigChan
-	}
-	rule := fmt.Sprintf("type='signal', member='%s',path_namespace='%s'", ModemSignalStateChanged, fmt.Sprint(m.GetObjectPath()))
-	m.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
-	m.sigChan = make(chan *dbus.Signal, 10)
-	m.conn.Signal(m.sigChan)
-	return m.sigChan
-}
-func (m modem) ParseStateChanged(v *dbus.Signal) (oldState MMModemState, newState MMModemState, reason MMModemStateChangeReason, err error) {
-	if len(v.Body) != 3 {
-		err = errors.New("error by parsing property changed signal")
-		return
-	}
-	oState, ok := v.Body[0].(int32)
-	if !ok {
-		err = errors.New("error by parsing old state")
-		return
-	}
-	oldState = MMModemState(oState)
-
-	nState, ok := v.Body[1].(int32)
-	if !ok {
-		err = errors.New("error by parsing new state")
-		return
-	}
-	newState = MMModemState(nState)
-
-	tmpReason, ok := v.Body[2].(uint32)
-	if !ok {
-		err = errors.New("error by parsing reason")
-		return
-	}
-	reason = MMModemStateChangeReason(tmpReason)
-
-	return
-}
-func (m modem) SubscribePropertiesChanged() <-chan *dbus.Signal {
-	if m.sigChan != nil {
-		return m.sigChan
-	}
-	rule := fmt.Sprintf("type='signal', member='%s',path_namespace='%s'", dbusPropertiesChanged, fmt.Sprint(m.GetObjectPath()))
-	m.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
-	m.sigChan = make(chan *dbus.Signal, 10)
-	m.conn.Signal(m.sigChan)
-	return m.sigChan
-}
-func (m modem) ParsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error) {
-	return m.parsePropertiesChanged(v)
+func (m *modem) DeliverSignal(_, _ string, signal *dbus.Signal) {
 }
 
-func (m modem) Unsubscribe() {
-	m.conn.RemoveSignal(m.sigChan)
-	m.sigChan = nil
-}
+// func (m *modem) SubscribeStateChanged() <-chan *dbus.Signal {
+// 	if m.sigChan != nil {
+// 		return m.sigChan
+// 	}
+// 	rule := fmt.Sprintf("type='signal', member='%s',path_namespace='%s'", ModemSignalStateChanged, fmt.Sprint(m.GetObjectPath()))
+// 	m.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
+// 	m.sigChan = make(chan *dbus.Signal, 10)
+// 	m.conn.Signal(m.sigChan)
+// 	return m.sigChan
+// }
+// func (m *modem) ParseStateChanged(v *dbus.Signal) (oldState MMModemState, newState MMModemState, reason MMModemStateChangeReason, err error) {
+// 	if len(v.Body) != 3 {
+// 		err = errors.New("error by parsing property changed signal")
+// 		return
+// 	}
+// 	oState, ok := v.Body[0].(int32)
+// 	if !ok {
+// 		err = errors.New("error by parsing old state")
+// 		return
+// 	}
+// 	oldState = MMModemState(oState)
 
-func (m modem) MarshalJSON() ([]byte, error) {
-	sim, err := m.GetSim()
-	if err != nil {
-		return nil, err
-	}
-	simJson, err := sim.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	var bearersJson [][]byte
-	bearers, err := m.GetBearers()
-	if err != nil {
-		return nil, err
-	}
-	for _, x := range bearers {
-		tmpB, err := x.MarshalJSON()
-		if err != nil {
-			return nil, err
-		}
-		bearersJson = append(bearersJson, tmpB)
-	}
+// 	nState, ok := v.Body[1].(int32)
+// 	if !ok {
+// 		err = errors.New("error by parsing new state")
+// 		return
+// 	}
+// 	newState = MMModemState(nState)
+
+// 	tmpReason, ok := v.Body[2].(uint32)
+// 	if !ok {
+// 		err = errors.New("error by parsing reason")
+// 		return
+// 	}
+// 	reason = MMModemStateChangeReason(tmpReason)
+
+// 	return
+// }
+// func (m *modem) SubscribePropertiesChanged() <-chan *dbus.Signal {
+// 	if m.sigChan != nil {
+// 		return m.sigChan
+// 	}
+// 	rule := fmt.Sprintf("type='signal', member='%s',path_namespace='%s'", dbusPropertiesChanged, fmt.Sprint(m.GetObjectPath()))
+// 	m.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
+// 	m.sigChan = make(chan *dbus.Signal, 10)
+// 	m.conn.Signal(m.sigChan)
+// 	return m.sigChan
+// }
+// func (m *modem) ParsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error) {
+// 	return m.parsePropertiesChanged(v)
+// }
+
+// func (m *modem) Unsubscribe() {
+// 	m.conn.RemoveSignal(m.sigChan)
+// 	m.sigChan = nil
+// }
+
+func (m *modem) MarshalJSON() ([]byte, error) {
+	// sim, err := m.GetSim()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// simJson, err := sim.MarshalJSON()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// var bearersJson [][]byte
+	// bearers, err := m.GetBearers()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// for _, x := range bearers {
+	// 	tmpB, err := x.MarshalJSON()
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	bearersJson = append(bearersJson, tmpB)
+	// }
 	supportedCapabilities, err := m.GetSupportedCapabilities()
 	if err != nil {
 		return nil, err
@@ -935,8 +937,8 @@ func (m modem) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(map[string]interface{}{
-		"Sim":                          simJson,
-		"Bearers":                      bearersJson,
+		// "Sim":                          simJson,
+		// "Bearers":                      bearersJson,
 		"SupportedCapabilities":        supportedCapabilities,
 		"CurrentCapabilities":          currentCapabilities,
 		"MaxBearers":                   maxBearers,

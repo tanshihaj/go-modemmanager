@@ -27,17 +27,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/godbus/dbus/v5"
 	"net"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/godbus/dbus/v5"
 )
 
 const (
-	dbusMethodAddMatch       = "org.freedesktop.DBus.AddMatch"
-	dbusMethodManagedObjects = "org.freedesktop.DBus.ObjectManager.GetManagedObjects"
-	dbusPropertiesChanged    = "PropertiesChanged"
+	dbusInterface              = "org.freedesktop.DBus"
+	dbusObjectManagerInterface = "org.freedesktop.DBus.ObjectManager"
+
+	/* Signals */
+	dbusNameOwnerChanged               = dbusInterface + ".NameOwnerChanged"
+	dbusObjectManagerInterfacesAdded   = dbusObjectManagerInterface + ".InterfacesAdded"
+	dbusObjectManagerInterfacesRemoved = dbusObjectManagerInterface + ".InterfacesRemoved"
+
+	/* Methods */
+	dbusObjectManagerGetManagedObjects = dbusObjectManagerInterface + ".GetManagedObjects"
+
+	/* Misc */
+	// dbusMethodAddMatch    = "org.freedesktop.DBus.AddMatch"
+	dbusPropertiesChanged = "PropertiesChanged"
 )
 
 // Pair represents two interface values (left and right side)
@@ -87,13 +99,14 @@ type dbusBase struct {
 	obj  dbus.BusObject
 }
 
-func (d *dbusBase) init(iface string, objectPath dbus.ObjectPath) error {
+func (d *dbusBase) init(iface string, objectPath dbus.ObjectPath, sigHandler dbus.SignalHandler) error {
 	var err error
 
-	d.conn, err = dbus.SystemBus()
+	d.conn, err = dbus.ConnectSystemBus(dbus.WithSignalHandler(sigHandler))
 	if err != nil {
 		return err
 	}
+	// defer conn.Close()
 
 	d.obj = d.conn.Object(iface, objectPath)
 
@@ -112,16 +125,17 @@ func (d *dbusBase) callWithReturn2(ret1 interface{}, ret2 interface{}, method st
 	return d.obj.Call(method, 0, args...).Store(ret1, ret2)
 }
 
-func (d *dbusBase) subscribe(iface, member string) {
-	rule := fmt.Sprintf("type='signal',interface='%s',path='%s',member='%s'",
-		iface, d.obj.Path(), ModemManagerInterface)
-	d.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
-}
+// func (d *dbusBase) subscribe(iface, member string) {
+// 	rule := fmt.Sprintf("type='signal',interface='%s',path='%s',member='%s'",
+// 		iface, d.obj.Path(), ModemManagerInterface)
+// 	d.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
+// }
 
-func (d *dbusBase) subscribeNamespace(namespace string) {
-	rule := fmt.Sprintf("type='signal',path_namespace='%s'", namespace)
-	d.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
-}
+//	func (d *dbusBase) subscribeNamespace(namespace string) {
+//		rule := fmt.Sprintf("type='signal',path_namespace='%s'", namespace)
+//		d.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
+//	}
+
 func (d *dbusBase) parsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error) {
 	if len(v.Body) != 3 {
 		err = errors.New("error by parsing property changed signal")
@@ -544,7 +558,7 @@ func (d *dbusBase) getManagedObjects(iface string, path dbus.ObjectPath) ([]dbus
 
 	busObject := d.conn.Object(iface, path)
 
-	err := busObject.Call(dbusMethodManagedObjects, 0).Store(&managedObjects)
+	err := busObject.Call(dbusObjectManagerGetManagedObjects, 0).Store(&managedObjects)
 	if err != nil {
 		return nil, err
 	}

@@ -3,13 +3,19 @@ package modemmanager
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/godbus/dbus/v5"
+	"log"
 	"reflect"
+	"strings"
+	"sync"
+
+	"github.com/godbus/dbus/v5"
 )
 
 // Paths of methods and properties
 const (
-	ModemManagerInterface = "org.freedesktop.ModemManager1"
+	ModemManagerBusName        = "org.freedesktop.ModemManager1"
+	ModemManagerInterface      = "org.freedesktop.ModemManager1"
+	ModemManagerModemInterface = "org.freedesktop.ModemManager1.Modem"
 
 	ModemManagerObjectPath     = "/org/freedesktop/ModemManager1"
 	modemManagerMainObjectPath = "/org/freedesktop/ModemManager/"
@@ -24,6 +30,11 @@ const (
 	ModemManagerPropertyVersion = ModemManagerInterface + ".Version" // readable   s
 
 )
+
+type ModemChange struct {
+	Change    MMModemChange
+	ModemPath dbus.ObjectPath
+}
 
 // The ModemManager interface allows controlling and querying the status of the ModemManager daemon.
 type ModemManager interface {
@@ -60,27 +71,21 @@ type ModemManager interface {
 
 	/* SIGNALS */
 
-	// Listen to changed properties
-	// returns []interface
-	// index 0 = name of the interface on which the properties are defined
-	// index 1 = changed properties with new values as map[string]dbus.Variant
-	// index 2 = invalidated properties: changed properties but the new values are not send with them
-	SubscribePropertiesChanged() <-chan *dbus.Signal
-
-	// ParsePropertiesChanged parses the dbus signal
-	ParsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error)
+	SubscribeModemChanges() (<-chan *ModemChange, error)
 	Unsubscribe()
 }
 
 // NewModemManager returns new ModemManager Interface
 func NewModemManager() (ModemManager, error) {
 	var mm modemManager
-	return &mm, mm.init(ModemManagerInterface, ModemManagerObjectPath)
+	return &mm, mm.init(ModemManagerInterface, ModemManagerObjectPath, &mm)
 }
 
 type modemManager struct {
 	dbusBase
-	sigChan chan *dbus.Signal
+	modemChange      chan *ModemChange
+	discoveredModems map[dbus.ObjectPath]bool
+	sync.RWMutex
 }
 
 // EventProperties  defines the properties which should be reported to the kernel
@@ -101,7 +106,7 @@ func (ep EventProperties) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (mm modemManager) GetModems() (modems []Modem, err error) {
+func (mm *modemManager) GetModems() (modems []Modem, err error) {
 	devPaths, err := mm.getManagedObjects(ModemManagerInterface, ModemManagerObjectPath)
 	if err != nil {
 		return nil, err
@@ -116,17 +121,17 @@ func (mm modemManager) GetModems() (modems []Modem, err error) {
 	return
 }
 
-func (mm modemManager) ScanDevices() error {
+func (mm *modemManager) ScanDevices() error {
 	err := mm.call(ModemManagerScanDevices)
 	return err
 }
 
-func (mm modemManager) SetLogging(level MMLoggingLevel) error {
+func (mm *modemManager) SetLogging(level MMLoggingLevel) error {
 	err := mm.call(ModemManagerSetLogging, &level)
 	return err
 }
 
-func (mm modemManager) ReportKernelEvent(properties EventProperties) error {
+func (mm *modemManager) ReportKernelEvent(properties EventProperties) error {
 	// todo: untested
 	v := reflect.ValueOf(properties)
 	st := reflect.TypeOf(properties)
@@ -145,36 +150,124 @@ func (mm modemManager) ReportKernelEvent(properties EventProperties) error {
 	return mm.call(ModemManagerReportKernelEvent, &myMap)
 }
 
-func (mm modemManager) InhibitDevice(uid string, inhibit bool) error {
+func (mm *modemManager) InhibitDevice(uid string, inhibit bool) error {
 	// todo: untested
 	err := mm.call(ModemManagerInhibitDevice, &uid, &inhibit)
 	return err
 }
 
-func (mm modemManager) GetVersion() (string, error) {
+func (mm *modemManager) GetVersion() (string, error) {
 	v, err := mm.getStringProperty(ModemManagerPropertyVersion)
 	return v, err
 }
-func (mm modemManager) SubscribePropertiesChanged() <-chan *dbus.Signal {
-	if mm.sigChan != nil {
-		return mm.sigChan
+
+func (mm *modemManager) DeliverSignal(_, _ string, signal *dbus.Signal) {
+	mm.Lock()
+	defer mm.Unlock()
+
+	// log.Printf("deliver signal bg %s", signal.Name)
+	// log.Printf("%v", signal.Body)
+
+	if mm.modemChange == nil {
+		log.Printf("deliver signal ex0")
+		return
 	}
-	rule := fmt.Sprintf("type='signal', member='%s',path_namespace='%s'", dbusPropertiesChanged, ModemManagerObjectPath)
-	mm.conn.BusObject().Call(dbusMethodAddMatch, 0, rule)
-	mm.sigChan = make(chan *dbus.Signal, 10)
-	mm.conn.Signal(mm.sigChan)
-	return mm.sigChan
-}
-func (mm modemManager) ParsePropertiesChanged(v *dbus.Signal) (interfaceName string, changedProperties map[string]dbus.Variant, invalidatedProperties []string, err error) {
-	return mm.parsePropertiesChanged(v)
+
+	if len(mm.modemChange) >= cap(mm.modemChange) {
+		log.Printf("cannot handle signal since modem change channel is full")
+		return
+	}
+
+	switch signal.Name {
+	case dbusNameOwnerChanged:
+		if len(signal.Body) != 3 {
+			log.Printf("%s signal must have 3 args, got %d", signal.Name, len(signal.Body))
+			return
+		}
+
+		// any time when ModemManager bus name changes we need to invalidate all discovered modems
+		for path := range mm.discoveredModems {
+			mm.modemChange <- &ModemChange{Change: MmModemChangeRemoved, ModemPath: path}
+		}
+		mm.discoveredModems = make(map[dbus.ObjectPath]bool)
+
+	case dbusObjectManagerInterfacesAdded:
+		if len(signal.Body) != 2 {
+			log.Printf("%s signal must have 2 args, got %d", signal.Name, len(signal.Body))
+			return
+		}
+
+		// log.Printf("handling %s for %s modem, props %v", signal.Name, signal.Body[0], signal.Body[1])
+		path, ok := signal.Body[0].(dbus.ObjectPath)
+		if !ok {
+			log.Printf("%s signal first arg should be a dbus.ObjectPath, got %T", signal.Name, signal.Body[0])
+			return
+		}
+		if !strings.HasPrefix(string(path), "/org/freedesktop/ModemManager1/Modem/") {
+			return
+		}
+
+		mm.modemChange <- &ModemChange{Change: MmModemChangeAdded, ModemPath: path}
+		mm.discoveredModems[path] = true
+
+	case dbusObjectManagerInterfacesRemoved:
+		if len(signal.Body) != 2 {
+			log.Printf("%s signal must have 2 args, got %d", signal.Name, len(signal.Body))
+			return
+		}
+		// log.Debugf("handling %s for %s modem, props %v", signal.Name, signal.Body[0], signal.Body[1])
+		path, ok := signal.Body[0].(dbus.ObjectPath)
+		if !ok {
+			log.Printf("%s signal first arg should be a dbus.ObjectPath, got %T", signal.Name, signal.Body[0])
+			return
+		}
+
+		mm.modemChange <- &ModemChange{Change: MmModemChangeRemoved, ModemPath: path}
+		delete(mm.discoveredModems, path)
+	}
 }
 
-func (mm modemManager) Unsubscribe() {
-	mm.conn.RemoveSignal(mm.sigChan)
-	mm.sigChan = nil
+func (mm *modemManager) SubscribeModemChanges() (<-chan *ModemChange, error) {
+	mm.Lock()
+	defer mm.Unlock()
+
+	if mm.modemChange != nil {
+		return mm.modemChange, nil
+	}
+
+	mm.modemChange = make(chan *ModemChange, 10)
+
+	// filter modem additions and removals
+	err := mm.conn.AddMatchSignal(
+		dbus.WithMatchSender(ModemManagerBusName),
+		dbus.WithMatchInterface(dbusObjectManagerInterface),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot set D-Bus match rule: %w", err)
+	}
+
+	// filter "org.freedesktop.ModemManager1" reconnection
+	err = mm.conn.AddMatchSignal(
+		dbus.WithMatchSender("org.freedesktop.DBus"),
+		dbus.WithMatchInterface(dbusInterface),
+		dbus.WithMatchMember("NameOwnerChanged"),
+		dbus.WithMatchArg(0, ModemManagerBusName),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot set D-Bus match rule: %w", err)
+	}
+	return mm.modemChange, nil
 }
 
-func (mm modemManager) MarshalJSON() ([]byte, error) {
+func (mm *modemManager) Unsubscribe() {
+	mm.Lock()
+	defer mm.Unlock()
+
+	close(mm.modemChange)
+	mm.modemChange = nil
+}
+
+func (mm *modemManager) MarshalJSON() ([]byte, error) {
 	version, err := mm.GetVersion()
 	if err != nil {
 		return nil, err
